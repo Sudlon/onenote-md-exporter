@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace alxnbl.OneNoteMdExporter.Services.Export
 {
@@ -246,6 +247,64 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             {
                 xmlOutline.Attribute("collapsed")?.Remove();
             }
+
+
+
+            /// #############################
+            /// ## check boxes work around ##
+            /// #############################
+            /// Method: create custom check box tags, so we can find them later in the docx/MD files and replace them with markdown checkboxes
+            /// First we need to find the index used for tasks, by looking through the "TagDef"s at the top of the xml file
+            ///     <one:TagDef index="1" type="0" symbol="3" fontColor="automatic" highlightColor="none" name="To Do" />
+            /// We then use the index to find all the tasks in the page content and add the cusotm tag.
+
+            /// Get the index used for tags on this page
+            string taskIndex = "-1";
+            foreach (var xmlText in xmlPageContent.Descendants(ns + "TagDef"))
+            {
+                if (xmlText.Attribute("name")?.Value == "To Do")
+                {
+                    taskIndex = xmlText.Attribute("index")?.Value;
+                    break;
+                }
+            }
+
+            /// Add a custom "tag" we can recognise later
+            Regex taskRegex = new Regex($@"(<one:T><!\[CDATA\[)");
+            string CUSTOM_TAG_UNCHECKED = "|[|UNCHECKED_TASK|]|";
+            string CUSTOM_TAG_CHECKED = "|[|CHECKED_TASK|]|";
+            foreach (var xmlText in xmlPageContent.Descendants(ns + "Tag"))
+            {
+                string customTag = "";
+
+                /// If Tag-element is a task
+                if (xmlText.Attribute("index")?.Value == taskIndex)
+                {
+
+                    /// Check and update next node which contains the text of the task and where we will add the custom tag
+                    XElement nextElement = xmlText.NextNode as XElement;
+                    if (nextElement != null)
+                    {
+                        /// Add the custom tag
+                        XNode innerNode = nextElement.FirstNode as XNode;
+                        if (innerNode != null && innerNode.NodeType.ToString() == "CDATA")
+                        {
+                            customTag = (xmlText.Attribute("completed")?.Value == "false") ? CUSTOM_TAG_UNCHECKED : CUSTOM_TAG_CHECKED;
+                            nextElement.Value = customTag + " " + nextElement.Value;
+                        } else {
+                            Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{nextElement?.Value}'");
+                        }
+
+                    } else {
+                        Log.Warning($"Found task, but couldn't add custom tag. No next element found: '{xmlText?.Value}'");
+                    }
+                }
+            }
+
+            /// #############################
+            /// #############################
+
+
 
             /// Fix for non-standard text highlights:
             /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
