@@ -248,63 +248,8 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 xmlOutline.Attribute("collapsed")?.Remove();
             }
 
-
-
-            /// #############################
-            /// ## check boxes work around ##
-            /// #############################
-            /// Method: create custom check box tags, so we can find them later in the docx/MD files and replace them with markdown checkboxes
-            /// First we need to find the index used for tasks, by looking through the "TagDef"s at the top of the xml file
-            ///     <one:TagDef index="1" type="0" symbol="3" fontColor="automatic" highlightColor="none" name="To Do" />
-            /// We then use the index to find all the tasks in the page content and add the cusotm tag.
-
-            /// Get the index used for tags on this page
-            string taskIndex = "-1";
-            foreach (var xmlText in xmlPageContent.Descendants(ns + "TagDef"))
-            {
-                if (xmlText.Attribute("name")?.Value == "To Do")
-                {
-                    taskIndex = xmlText.Attribute("index")?.Value;
-                    break;
-                }
-            }
-
-            /// Add a custom "tag" we can recognise later
-            Regex taskRegex = new Regex($@"(<one:T><!\[CDATA\[)");
-            string CUSTOM_TAG_UNCHECKED = "|[|UNCHECKED_TASK|]|";
-            string CUSTOM_TAG_CHECKED = "|[|CHECKED_TASK|]|";
-            foreach (var xmlText in xmlPageContent.Descendants(ns + "Tag"))
-            {
-                string customTag = "";
-
-                /// If Tag-element is a task
-                if (xmlText.Attribute("index")?.Value == taskIndex)
-                {
-
-                    /// Check and update next node which contains the text of the task and where we will add the custom tag
-                    XElement nextElement = xmlText.NextNode as XElement;
-                    if (nextElement != null)
-                    {
-                        /// Add the custom tag
-                        XNode innerNode = nextElement.FirstNode as XNode;
-                        if (innerNode != null && innerNode.NodeType.ToString() == "CDATA")
-                        {
-                            customTag = (xmlText.Attribute("completed")?.Value == "false") ? CUSTOM_TAG_UNCHECKED : CUSTOM_TAG_CHECKED;
-                            nextElement.Value = customTag + " " + nextElement.Value;
-                        } else {
-                            Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{nextElement?.Value}'");
-                        }
-
-                    } else {
-                        Log.Warning($"Found task, but couldn't add custom tag. No next element found: '{xmlText?.Value}'");
-                    }
-                }
-            }
-
-            /// #############################
-            /// #############################
-
-
+            /// Keep "checkbox information" by adding custom "findable" tags
+            AddCustomCheckboxTags(xmlPageContent, ns);
 
             /// Fix for non-standard text highlights:
             /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
@@ -327,6 +272,50 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 return TemporaryNotebook.ClonePage(xmlPageContent);
             else
                 return null;
+        }
+
+        /// <summary>
+        /// Add custom checkbox tags to the page XML content so we can later find the tasks in the docx/md files.
+        /// </summary>
+        /// <param name="xmlPageContent"></param>
+        /// <param name="ns"></param>
+        private void AddCustomCheckboxTags(XElement xmlPageContent, XNamespace ns)
+        {
+            const string ToDoTagName = "To Do";
+            const string CustomTagUnchecked = "|[|UNCHECKED_TASK|]|";
+            const string CustomTagChecked = "|[|CHECKED_TASK|]|";
+
+            // Find the index for "To Do" tags
+            string taskIndex = xmlPageContent
+                .Descendants(ns + "TagDef")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == ToDoTagName)
+                ?.Attribute("index")?.Value ?? "-1";
+
+            foreach (var tagElement in xmlPageContent.Descendants(ns + "Tag"))
+            {
+                if (tagElement.Attribute("index")?.Value != taskIndex)
+                    continue;
+
+                XElement nextElement = tagElement.NextNode as XElement;
+                if (nextElement == null)
+                {
+                    Log.Warning($"Found task, but couldn't add custom tag. No next element found: '{tagElement?.Value}'");
+                    continue;
+                }
+
+                XNode innerNode = nextElement.FirstNode as XNode;
+                if (innerNode == null || innerNode.NodeType.ToString() != "CDATA")
+                {
+                    Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{nextElement?.Value}'");
+                    continue;
+                }
+
+                string customTag = (tagElement.Attribute("completed")?.Value == "false")
+                    ? CustomTagUnchecked
+                    : CustomTagChecked;
+                /// Add custom tag right before the tasks inner content
+                nextElement.Value = $"{customTag} {nextElement.Value}";
+            }
         }
 
         protected abstract string FinalizePageMdPostProcessing(Page page, string md);
