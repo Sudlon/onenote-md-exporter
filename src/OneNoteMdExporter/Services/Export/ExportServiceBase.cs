@@ -281,8 +281,8 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
 
         private static void convertHexValueHighlightingToYellow(XElement xmlPageContent, XNamespace ns)
         {
-            /// Fix for non-standard text highlights:
-            /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
+            // Fix for non-standard text highlights:
+            // Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
             var highlightRegex = new Regex(@"(<span\s+style='[^']*?background)\s*:\s*#\w+");
             foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
             {
@@ -319,6 +319,8 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
 
         /// <summary>
         /// Convert Onenote tags to custom tags/emoticons in the text content so the tag information is conveyed to end result.
+        /// In theory you could try and replace the custom tags with markdown compatible elements (e.g. for tasks), but this has too many edge cases (e.g. task in table).
+        /// If you want to do this, you could use the "FinalizePageMdPostProcessing" method for this.
         /// </summary>
         /// <param name="xmlPageContent"></param>
         /// <param name="ns"></param>
@@ -330,19 +332,19 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         const string CustomTagDefinition = "<span style='background:green;mso-highlight:green'>";
         private void ConvertOnenoteTags(XElement xmlPageContent, XNamespace ns)
         {
-            /// Find the indices for OneNote tags
+            // Find the indices for OneNote tags
             string taskIndex = getTagIndex(xmlPageContent, ns, "To Do");
             string importantIndex = getTagIndex(xmlPageContent, ns, "Important");
             string questionIndex = getTagIndex(xmlPageContent, ns, "Question");
             string rememberIndex = getTagIndex(xmlPageContent, ns, "Remember for later");   // yellow highlight
             string definitionIndex = getTagIndex(xmlPageContent, ns, "Definition");         // Green highlight
 
-            /// Find occurances and replace
+            // Find occurances and replace
             foreach (var tagElement in xmlPageContent.Descendants(ns + "Tag"))
             {
                 XElement parent = tagElement.Parent;
                 XElement contentElement = parent.FirstNode.NextNode as XElement;
-                // LastNode needed when tag is in a list
+                // LastNode is needed when tag is in a list
                 if (contentElement.Name != ns + "T")
                     contentElement = parent.LastNode as XElement;
                 XNode innerNode = contentElement.FirstNode;
@@ -356,6 +358,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     continue;
                 }
 
+                // Determine which custom tag to use
                 string customTag = "";
                 string highlightEndTag = "";
                 if (elemIndex == taskIndex)
@@ -377,7 +380,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 else
                     continue; // Not a task, important or question tag, skip
 
-                /// Add custom tag right before the tasks inner content
+                // Add custom tag right before the tasks inner content
                 contentElement.Value = $"{customTag}{contentElement.Value}{highlightEndTag}";
             }
             }
