@@ -112,6 +112,9 @@ namespace alxnbl.OneNoteMdExporter.Services
                 mdFileContent = RemoveOneNoteHeader(mdFileContent);
             }
 
+            if (AppSettings.KeepHtmlHighlighting)
+                mdFileContent = KeepHtmlHighlighting(mdFileContent);
+
             mdFileContent = InsertMdHighlight(mdFileContent);
         }
 
@@ -188,6 +191,18 @@ namespace alxnbl.OneNoteMdExporter.Services
             var pageTxtModified = Regex.Replace(pageTxt, regex, delegate (Match match)
             {
                 return "==" + (match.Groups["text"]?.Value ?? "") + "==";
+            });
+
+            return pageTxtModified;
+        }
+
+        private static string KeepHtmlHighlighting(string pageTxt)
+        {
+            // match and replace each span block of a row
+            string highlightRegex = @"\\\[span\s+style='background\s*:(\s*[a-zA-Z0-9;:-]*)'\\\](.*?)\\\[\/span\\\]";
+            var pageTxtModified = Regex.Replace(pageTxt, highlightRegex, delegate (Match match)
+            {
+                return $"<span style='background:{match.Groups[1]}'>{match.Groups[2]}</span>";
             });
 
             return pageTxtModified;

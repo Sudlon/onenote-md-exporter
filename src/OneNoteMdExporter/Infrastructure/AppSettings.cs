@@ -68,6 +68,13 @@ namespace alxnbl.OneNoteMdExporter.Infrastructure
         /// </summary>
         public static bool convertHexValueHighlightingToYellow { get; set; } = false;
 
+        /// <summary>
+        /// Keep HTML highlighting (using span-elements) instead of markdown 
+        /// highlighting (using '==' turning all highlighting into yellow highlighting).
+        /// Some editors like TipTap/Notesnook can handle this!
+        /// </summary>
+        public static bool KeepHtmlHighlighting { get; set; } = true;
+        
 
         /*
          * Markdown rendering Settings

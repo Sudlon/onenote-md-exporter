@@ -250,6 +250,10 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             /// Keep "OneNote tag information" by adding custom tags in text content
             ConvertOnenoteTags(xmlPageContent, ns);
 
+            /// Keep HTML highlighting (using span elements). Notesnook can handle this!
+            if (AppSettings.KeepHtmlHighlighting)
+                KeepHtmlHighlighting(xmlPageContent, ns);
+
             /// Convert hash valued colors to yellow
             if (AppSettings.convertHexValueHighlightingToYellow)
                 convertHexValueHighlightingToYellow(xmlPageContent, ns);
@@ -258,6 +262,18 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 return TemporaryNotebook.ClonePage(xmlPageContent);
             else
                 return null;
+        }
+
+        private static void KeepHtmlHighlighting(XElement xmlPageContent, XNamespace ns)
+        {
+            var highlightRegex = new Regex(@"<span\s+style='background\s*:(\s*[a-zA-Z0-9;:-]*)'>(.*?)<\/span>");
+            foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
+            {
+                xmlText.Value = highlightRegex.Replace(xmlText.Value, match =>
+                {
+                    return $"[span style='background:{match.Groups[1]}']{match.Groups[2]}[/span]";
+                });
+            }
         }
 
         private static void convertHexValueHighlightingToYellow(XElement xmlPageContent, XNamespace ns)
