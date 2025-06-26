@@ -63,6 +63,10 @@ namespace alxnbl.OneNoteMdExporter.Infrastructure
         /// </summary>
         public static string ResourceFolderName { get; set; } = "_resources";
 
+        /// <summary>
+        /// Convert all OneNote highlighting using hex valued colors, to yellow.
+        /// </summary>
+        public static bool convertHexValueHighlightingToYellow { get; set; } = false;
 
 
         /*

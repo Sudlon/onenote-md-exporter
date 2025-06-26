@@ -250,27 +250,28 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             /// Keep "OneNote tag information" by adding custom tags in text content
             ConvertOnenoteTags(xmlPageContent, ns);
 
-            /// Fix for non-standard text highlights:
-            /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
-            var highlightRegex = new Regex(@"(<span\s+style='[^']*?background)\s*:\s*#\w+");
-            foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
-            {
-                var isValueChanged = false;
-
-                var newValue = highlightRegex.Replace(xmlText.Value, match =>
-                {
-                    isValueChanged = true;
-                    return $"{match.Groups[1]}:yellow";
-                });
-
-                if (isValueChanged)
-                    xmlText.Value = newValue;
-            }
+            /// Convert hash valued colors to yellow
+            if (AppSettings.convertHexValueHighlightingToYellow)
+                convertHexValueHighlightingToYellow(xmlPageContent, ns);
 
             if (isXmlChanged)
                 return TemporaryNotebook.ClonePage(xmlPageContent);
             else
                 return null;
+        }
+
+        private static void convertHexValueHighlightingToYellow(XElement xmlPageContent, XNamespace ns)
+        {
+            /// Fix for non-standard text highlights:
+            /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
+            var highlightRegex = new Regex(@"(<span\s+style='[^']*?background)\s*:\s*#\w+");
+            foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
+            {
+                xmlText.Value = highlightRegex.Replace(xmlText.Value, match =>
+                {
+                    return $"{match.Groups[1]}:yellow";
+                });
+            }
         }
 
         /// <summary>
