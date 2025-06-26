@@ -247,8 +247,8 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 xmlOutline.Attribute("collapsed")?.Remove();
             }
 
-            /// Keep "checkbox information" by adding custom "findable" tags
-            AddCustomCheckboxTags(xmlPageContent, ns);
+            /// Keep "OneNote tag information" by adding custom tags in text content
+            ConvertOnenoteTags(xmlPageContent, ns);
 
             /// Fix for non-standard text highlights:
             /// Replace OneNote CDATA HTML tags <span style="background:#SOME_HEX_VAL"> by <span style="background:yellow">
@@ -274,46 +274,70 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         }
 
         /// <summary>
-        /// Add custom checkbox tags to the page XML content so we can later find the tasks in the docx/md files.
+        /// Convert the Onenote tags checkbox, star and question to custom tags/emoticons in the text content so the tag information is conveyed to end result.
         /// </summary>
         /// <param name="xmlPageContent"></param>
         /// <param name="ns"></param>
-        const string CustomTagUnchecked = "🔲";
-        const string CustomTagChecked = "✅";
-        private void AddCustomCheckboxTags(XElement xmlPageContent, XNamespace ns)
+        const string CustomTagUnchecked = "🔲 ";
+        const string CustomTagChecked = "✅ ";
+        const string CustomTagStar = "⭐ ";
+        const string CustomTagQuestion = "❓ ";
+        const string CustomTagRemember = "<span style='background:yellow;mso-highlight:yellow'>";
+        private void ConvertOnenoteTags(XElement xmlPageContent, XNamespace ns)
         {
-            const string ToDoTagName = "To Do";
-            const string CustomTagUnchecked = "|[|UNCHECKED_TASK|]|";
-            const string CustomTagChecked = "|[|CHECKED_TASK|]|";
+            /// Find the indices for OneNote tags
+            string taskIndex = getTagIndex(xmlPageContent, ns, "To Do");
+            string importantIndex = getTagIndex(xmlPageContent, ns, "Important");
+            string questionIndex = getTagIndex(xmlPageContent, ns, "Question");
+            string rememberIndex = getTagIndex(xmlPageContent, ns, "Remember for later");   // yellow highlight
+            string definitionIndex = getTagIndex(xmlPageContent, ns, "Definition");         // Green highlight
 
-            // Find the index for "To Do" tags
-            string taskIndex = xmlPageContent
-                .Descendants(ns + "TagDef")
-                .FirstOrDefault(e => e.Attribute("name")?.Value == ToDoTagName)
-                ?.Attribute("index")?.Value ?? "-1";
-
+            /// Find occurances and replace
             foreach (var tagElement in xmlPageContent.Descendants(ns + "Tag"))
             {
-                if (tagElement.Attribute("index")?.Value != taskIndex)
-                    continue;
+                XElement parent = tagElement.Parent;
+                XElement contentElement = parent.FirstNode.NextNode as XElement;
+                // LastNode needed when tag is in a list
+                if (contentElement.Name != ns + "T")
+                    contentElement = parent.LastNode as XElement;
+                XNode innerNode = contentElement.FirstNode;
 
-                XElement parent = tagElement.Parent as XElement;
-                XElement lastElement = parent.LastNode as XElement;     // last node works when task is in a list
-                XNode innerNode = lastElement.FirstNode as XNode;
-
-                XNode innerNode = nextElement.FirstNode as XNode;
-                if (innerNode == null || innerNode.NodeType.ToString() != "CDATA")
+                var elemIndex = tagElement.Attribute("index")?.Value;
+                if (contentElement.FirstNode is not XCData cdataNode)
                 {
-                    Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{lastElement?.Value}'");
+                    // Only log if the tag is one we expect to handle
+                    if (elemIndex == taskIndex || elemIndex == importantIndex || elemIndex == questionIndex)
+                        Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found for element with content: '{contentElement?.Value}'");
                     continue;
                 }
 
-                string customTag = (tagElement.Attribute("completed")?.Value == "false")
-                    ? CustomTagUnchecked
-                    : CustomTagChecked;
+                string customTag = "";
+                string highlightEndTag = "";
+                if (elemIndex == taskIndex)
+                    customTag = (tagElement.Attribute("completed")?.Value == "false") ? CustomTagUnchecked : CustomTagChecked;
+                else if (elemIndex == importantIndex)
+                    customTag = CustomTagStar;
+                else if (elemIndex == questionIndex)
+                    customTag = CustomTagQuestion;
+                else if (elemIndex == rememberIndex || elemIndex == definitionIndex)
+                {
+                    customTag = CustomTagRemember;
+                    highlightEndTag = "</span>";
+                }
+                else
+                    continue; // Not a task, important or question tag, skip
+
                 /// Add custom tag right before the tasks inner content
-                lastElement.Value = $"{customTag} {lastElement.Value}";
+                contentElement.Value = $"{customTag}{contentElement.Value}{highlightEndTag}";
             }
+            }
+
+        private static string getTagIndex(XElement xmlPageContent, XNamespace ns, string tagLabel)
+        {
+            return xmlPageContent
+                .Descendants(ns + "TagDef")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == tagLabel)
+                ?.Attribute("index")?.Value ?? "-1";
         }
 
         protected abstract string FinalizePageMdPostProcessing(Page page, string md);
