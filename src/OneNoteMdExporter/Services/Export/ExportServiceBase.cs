@@ -327,6 +327,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         const string CustomTagStar = "⭐ ";
         const string CustomTagQuestion = "❓ ";
         const string CustomTagRemember = "<span style='background:yellow;mso-highlight:yellow'>";
+        const string CustomTagDefinition = "<span style='background:green;mso-highlight:green'>";
         private void ConvertOnenoteTags(XElement xmlPageContent, XNamespace ns)
         {
             /// Find the indices for OneNote tags
@@ -363,9 +364,14 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     customTag = CustomTagStar;
                 else if (elemIndex == questionIndex)
                     customTag = CustomTagQuestion;
-                else if (elemIndex == rememberIndex || elemIndex == definitionIndex)
+                else if (elemIndex == rememberIndex)
                 {
                     customTag = CustomTagRemember;
+                    highlightEndTag = "</span>";
+                }
+                else if (elemIndex == definitionIndex)
+                {
+                    customTag = CustomTagDefinition;
                     highlightEndTag = "</span>";
                 }
                 else
