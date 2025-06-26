@@ -274,7 +274,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         }
 
         /// <summary>
-        /// Convert the Onenote tags checkbox, star and question to custom tags/emoticons in the text content so the tag information is conveyed to end result.
+        /// Convert Onenote tags to custom tags/emoticons in the text content so the tag information is conveyed to end result.
         /// </summary>
         /// <param name="xmlPageContent"></param>
         /// <param name="ns"></param>
