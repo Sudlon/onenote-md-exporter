@@ -279,6 +279,8 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         /// </summary>
         /// <param name="xmlPageContent"></param>
         /// <param name="ns"></param>
+        const string CustomTagUnchecked = "🔲";
+        const string CustomTagChecked = "✅";
         private void AddCustomCheckboxTags(XElement xmlPageContent, XNamespace ns)
         {
             const string ToDoTagName = "To Do";
@@ -296,17 +298,14 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 if (tagElement.Attribute("index")?.Value != taskIndex)
                     continue;
 
-                XElement nextElement = tagElement.NextNode as XElement;
-                if (nextElement == null)
-                {
-                    Log.Warning($"Found task, but couldn't add custom tag. No next element found: '{tagElement?.Value}'");
-                    continue;
-                }
+                XElement parent = tagElement.Parent as XElement;
+                XElement lastElement = parent.LastNode as XElement;     // last node works when task is in a list
+                XNode innerNode = lastElement.FirstNode as XNode;
 
                 XNode innerNode = nextElement.FirstNode as XNode;
                 if (innerNode == null || innerNode.NodeType.ToString() != "CDATA")
                 {
-                    Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{nextElement?.Value}'");
+                    Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found: '{lastElement?.Value}'");
                     continue;
                 }
 
@@ -314,7 +313,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     ? CustomTagUnchecked
                     : CustomTagChecked;
                 /// Add custom tag right before the tasks inner content
-                nextElement.Value = $"{customTag} {nextElement.Value}";
+                lastElement.Value = $"{customTag} {lastElement.Value}";
             }
         }
 
