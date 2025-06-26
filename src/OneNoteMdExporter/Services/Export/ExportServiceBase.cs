@@ -250,6 +250,9 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             /// Keep "OneNote tag information" by adding custom tags in text content
             ConvertOnenoteTags(xmlPageContent, ns);
 
+            /// Add horizontal bar before text blocks
+            AddHorizontalBarBeforeTextblocks(xmlPageContent, ns);
+
             /// Keep HTML highlighting (using span elements). Notesnook can handle this!
             if (AppSettings.KeepHtmlHighlighting)
                 KeepHtmlHighlighting(xmlPageContent, ns);
@@ -287,6 +290,30 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 {
                     return $"{match.Groups[1]}:yellow";
                 });
+            }
+        }
+
+        private static readonly string HorizontalBar = "---" + Environment.NewLine + Environment.NewLine;
+        private void AddHorizontalBarBeforeTextblocks(XElement xmlPageContent, XNamespace ns)
+        {
+            // Skip the first outline element
+            foreach (var outline in xmlPageContent.Descendants(ns + "Outline").Skip(1))
+            {
+                // Find the first <T> element with a CDATA node
+                var textElement = outline
+                    .Descendants(ns + "T")
+                    .FirstOrDefault(e => e.LastNode != null && e.LastNode.NodeType.ToString() == "CDATA");
+
+                if (textElement == null)
+                    continue; // Skip if not found
+
+                // Add an empty line before the text element
+                var emptyLineXml = new XElement(ns + "OE", new XAttribute("alignment", "left"),
+                    new XElement(ns + "T", "<![CDATA[]]>"));
+                textElement.Parent?.Parent?.AddFirst(emptyLineXml);
+
+                // Prepend horizontal bar and newlines
+                textElement.Value = $"{HorizontalBar}{textElement.Value}";
             }
         }
 
