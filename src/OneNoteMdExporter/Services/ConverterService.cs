@@ -193,8 +193,7 @@ namespace alxnbl.OneNoteMdExporter.Services
         {
             // PanDoc seems to produce 2 linebreaks characters for each linebreak in original DocX file
             // Replace all pair of linebreak by a single linebreak
-            // NB: This doesn't capture the extra line breaks between indented items because there is a ">" between the line breaks..
-            var pageTxtModified = Regex.Replace(pageTxt, @"(\n{2}|\r{2}|(\r\n){2})", Environment.NewLine);
+            var pageTxtModified = Regex.Replace(pageTxt, @"(\n>?\n|\r>?\r|\r\n>?\r\n)", Environment.NewLine);
 
             return pageTxtModified;
         }
