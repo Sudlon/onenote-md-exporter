@@ -1,6 +1,7 @@
 **OneNote Md Exporter** is a console application running on Windows that exports your OneNote notebooks in different markdown formats.
 
-> NB: This fork has NotesNook as target note taking app. Certain features are therefor made to work with Notesnook and haven't been tested with other apps like Joplin.
+> [!NOTE]  
+>  NB: This fork has **NotesNook** as target note taking app. Certain features are therefor made to work with Notesnook and haven't been tested with other apps like Joplin.
 
 
 This tool is usefull to :
