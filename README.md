@@ -1,5 +1,8 @@
 **OneNote Md Exporter** is a console application running on Windows that exports your OneNote notebooks in different markdown formats.
 
+> NB: This fork has NotesNook as target note taking app. Certain features are therefor made to work with Notesnook and haven't been tested with other apps like Joplin.
+
+
 This tool is usefull to :
 * evaluate or migrate to an alternative Knowledge Management Software like Joplin, Obsidian or other softwares based on Markdown format
 * backup your OneNote Notebooks in an interoperable and open file format
@@ -58,6 +61,10 @@ Command line is supported, run `OneNoteMdExporter.exe --help` for instructions.
     * ConvertToMarkdown: Convert OneNote links to markdown format "[text](url)" (suggested for Joplin)
     * ConvertToWikilink (default): Convert OneNote links to wikilink format "[[Page Title|Display Text]]" (suggested for Obsidian). It does not support links to section or section groups. Links to specific objects inside a page are not supported and will fall back to a link to the whole page.
     * Remove: Remove all OneNote links from the exported content but keep the text  
+  * `IndentingStyle` :
+     - LeaveAsIs: Don't do anything; this will basically remove the indentation from the markdown, because Pandoc doesn't support indentation when converting to markdown.
+     - ConvertToEmSpaces: Convert indentation to em-spaces making the indentation explicit.
+     - ConvertToBullets: Convert all content that is indented to a bullet list. The indentation usually looks best in this format, but you do get bullets.
 
 ## Joplin Raw Directory
 
@@ -66,12 +73,12 @@ Command line is supported, run `OneNoteMdExporter.exe --help` for instructions.
 
 # Features and limitations
 
-| Export format: | Markdown | Joplin |
-| --- | --- | --- |
-| Hierarchy of sections | ✅ Folder hierarchy | ✅ Notebook hierarchy |
-| Page ordering inside a section | 🔴 Ordering based on md filename | ✅ |
-| Page hierarchy | ✅ Page prefix or folder prefix | ✅ |
-| Notebook internal link (onenote://) | ✅ Links to pages (no links to section or anchors) | 🔴 Not tested
+| Export format: | Markdown | Joplin | NotesNook |
+| --- | --- | --- | --- |
+| Hierarchy of sections | ✅ Folder hierarchy | ✅ Notebook hierarchy | ✅ Notebook hierarchy |
+| Page ordering inside a section | 🔴 Ordering based on md filename | ✅ | 🔴 Ordering based on md filename |
+| Page hierarchy | ✅ Page prefix or folder prefix | ✅ | ✅ Page prefix or folder prefix |
+| Notebook internal link (onenote://) | ✅ Links to pages (no links to section or anchors) | 🔴 Not tested |  🟠 no NN internal link; original path is shown |
 
 ___
 ___
@@ -82,13 +89,15 @@ ___
 | Image  | ✅ |
 | Table  | ✅ |
 | Folded paragraphs | ✅ |
-| Image nexted into table | 🔴 Known issue [#48](https://github.com/alxnbl/onenote-md-exporter/issues/48) |
-| Font color| 🔴 |
-| Background color  | 🟠 Highlighted text |
+| Indentation | ✅ either as em-spaces or converted into bulleted list |
+| Font color| 🟠 Supports conversion to HTML |
+| Background color  | 🟠 Supports conversion to HTML or to highlighted text |
 | Drawing | 🟠 Flattened as image | 
-| Handwriting  | 🔴 Lost |
-| Text tags (task, star...)  | 🔴 Lost |
+| Text tags (task, star...)  | 🟠 Converted into emoticons |
 | Password protected sections | 🟠 Lost unless unlocked before export |
+| Image nexted into table | 🔴 Known issue [#48](https://github.com/alxnbl/onenote-md-exporter/issues/48) |
+| Handwriting  | 🔴 Lost |
+
 
 # Technical characteristics
 
