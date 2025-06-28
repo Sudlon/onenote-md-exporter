@@ -156,8 +156,8 @@ namespace alxnbl.OneNoteMdExporter.Services
                 mdFileContent = RemoveOneNoteHeader(mdFileContent);
             }
 
-            if (AppSettings.KeepHtmlHighlighting)
-                mdFileContent = KeepHtmlHighlighting(mdFileContent);
+            if (AppSettings.UseHtmlStyling)
+                mdFileContent = UnEscapeStylingSpan(mdFileContent);
 
             mdFileContent = InsertMdHighlight(mdFileContent);
             
@@ -302,13 +302,13 @@ namespace alxnbl.OneNoteMdExporter.Services
             });
         }
 
-        private static string KeepHtmlHighlighting(string pageTxt)
+        private static string UnEscapeStylingSpan(string pageTxt)
         {
             // match and replace each span block of a row
-            string highlightRegex = @"\\\[span\s+style='background\s*:(\s*[a-zA-Z0-9;:-]*)'\\\](.*?)\\\[\/span\\\]";
+            string highlightRegex = @"\\\[span\s+style='(\s*[a-zA-Z0-9\.\#;:-]*)'\\\](.*?)\\\[\/span\\\]";
             var pageTxtModified = Regex.Replace(pageTxt, highlightRegex, delegate (Match match)
             {
-                return $"<span style='background:{match.Groups[1]}'>{match.Groups[2]}</span>";
+                return $"<span style='{match.Groups[1]}'>{match.Groups[2]}</span>";
             });
 
             return pageTxtModified;

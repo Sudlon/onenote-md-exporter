@@ -303,18 +303,23 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             /// Make indenting explicit in content by adding empty lines before text blocks
             /// NB: this has to be AFTER the ConvertOnenoteTags method, otherwise the tabs come in between the tags and the text
             if (AppSettings.IndentingStyle != IndentingStyleEnum.LeaveAsIs)
-                ConvertIndentation(xmlPageContent, ns);
+                ConvertIndentation(xmlPageContent, ns, AppSettings.IndentingStyle);
 
             /// Add horizontal bar before text blocks
             AddHorizontalBarBeforeTextblocks(xmlPageContent, ns);
 
-            /// Keep HTML highlighting (using span elements). Notesnook can handle this!
-            if (AppSettings.KeepHtmlHighlighting)
-                KeepHtmlHighlighting(xmlPageContent, ns);
-
             /// Convert hash valued colors to yellow
             if (AppSettings.convertHexValueHighlightingToYellow)
                 convertHexValueHighlightingToYellow(xmlPageContent, ns);
+
+            /// Keep HTML highlighting (using span elements). Notesnook can handle this!
+            if (AppSettings.UseHtmlStyling)
+            {
+                // Capture font styling in span elements inside text elements
+                CaptureFontStyling(xmlPageContent, ns);
+                // Escape HTML, or it will be removed by Pandoc
+                EscapeStylingSpan(xmlPageContent, ns);
+            }
 
             if (isXmlChanged)
                 return TemporaryNotebook.ClonePage(xmlPageContent);
@@ -322,15 +327,31 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 return null;
         }
 
-        private static void KeepHtmlHighlighting(XElement xmlPageContent, XNamespace ns)
+        private static void EscapeStylingSpan(XElement xmlPageContent, XNamespace ns)
         {
-            var highlightRegex = new Regex(@"<span\s+style='background\s*:(\s*[a-zA-Z0-9;:-]*)'>(.*?)<\/span>");
+            var highlightRegex = new Regex(@"<span\s+style='(\s*[a-zA-Z0-9\.\#;:-]*)'>(.*?)<\/span>");
             foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
             {
                 xmlText.Value = highlightRegex.Replace(xmlText.Value, match =>
                 {
-                    return $"[span style='background:{match.Groups[1]}']{match.Groups[2]}[/span]";
+                    return $"[span style='{match.Groups[1]}']{match.Groups[2]}[/span]";
                 });
+            }
+        }
+
+        private static void CaptureFontStyling(XElement xmlPageContent, XNamespace ns)
+        {
+            foreach (var textElement in xmlPageContent.Descendants(ns + "T"))
+            {
+                // This is kindoff cheating, but the code is much simpler:
+                //  In the case of bold/italic/underline text, the text is already inside a <span> element.
+                //  However the text element itself in those cases also has a style attribute (which is basically redundant)
+                //  This will capture that as well and so will put the inner span with styling, in anouther span-element with styling.
+                //  However, because the escaping only captures the inner span-element, we end up with the same situation
+                //      as before: just span element inside the text element.
+                var styleAttribute = textElement.Attribute("style") ?? textElement.Parent?.Attribute("style");
+                if (styleAttribute is not null)
+                    textElement.Value = $"<span style='{styleAttribute.Value}'>{textElement.Value}</span>";
             }
         }
 
@@ -373,7 +394,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         }
 
         const int EmSpacesPerIndent = 2;
-        private void ConvertIndentation(XElement xmlPageContent, XNamespace ns)
+        private void ConvertIndentation(XElement xmlPageContent, XNamespace ns, IndentingStyleEnum indentStyle)
         {
             string defaultFontSize = getQuickStyleFontsize(xmlPageContent, ns);
             foreach (var textElement in xmlPageContent.Descendants(ns + "T"))
@@ -393,7 +414,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     continue;
 
                 // TODO: check of in tabel!
-                switch (AppSettings.IndentingStyle)
+                switch (indentStyle)
                 {
                     case IndentingStyleEnum.ConvertToEmSpaces:
                         textElement.Value = Repeat("&emsp;", indentLevel * EmSpacesPerIndent) + textElement.Value;
