@@ -64,16 +64,9 @@ namespace alxnbl.OneNoteMdExporter.Infrastructure
         public static string ResourceFolderName { get; set; } = "_resources";
 
         /// <summary>
-        /// Convert all OneNote highlighting using hex valued colors, to yellow.
+        /// OneNote indentation handling
         /// </summary>
-        public static bool convertHexValueHighlightingToYellow { get; set; } = false;
-
-        /// <summary>
-        /// Keep HTML highlighting (using span-elements) instead of markdown 
-        /// highlighting (using '==' turning all highlighting into yellow highlighting).
-        /// Some editors like TipTap/Notesnook can handle this!
-        /// </summary>
-        public static bool KeepHtmlHighlighting { get; set; } = true;
+        public static IndentingStyleEnum IndentingStyle { get; set; } = IndentingStyleEnum.ConvertToBullets;
         
 
         /*
@@ -110,6 +103,18 @@ namespace alxnbl.OneNoteMdExporter.Infrastructure
         /// Prevent generation of more that 2 linebreaks in a row
         /// </summary>
         public static bool MaxTwoLineBreaksInARow { get; set; } = true;
+
+        /// <summary>
+        /// Convert all OneNote highlighting using hex valued colors, to yellow.
+        /// </summary>
+        public static bool convertHexValueHighlightingToYellow { get; set; } = false;
+
+        /// <summary>
+        /// Keep HTML highlighting (using span-elements) instead of markdown 
+        /// highlighting (using '==' turning all highlighting into yellow highlighting).
+        /// Some editors like TipTap/Notesnook can handle this!
+        /// </summary>
+        public static bool KeepHtmlHighlighting { get; set; } = true;
 
         /// <summary>
         /// OneNote links handling

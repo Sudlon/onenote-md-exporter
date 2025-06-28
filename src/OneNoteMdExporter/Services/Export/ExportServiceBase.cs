@@ -300,6 +300,11 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             /// Keep "OneNote tag information" by adding custom tags in text content
             ConvertOnenoteTags(xmlPageContent, ns);
 
+            /// Make indenting explicit in content by adding empty lines before text blocks
+            /// NB: this has to be AFTER the ConvertOnenoteTags method, otherwise the tabs come in between the tags and the text
+            if (AppSettings.IndentingStyle != IndentingStyleEnum.LeaveAsIs)
+                ConvertIndentation(xmlPageContent, ns);
+
             /// Add horizontal bar before text blocks
             AddHorizontalBarBeforeTextblocks(xmlPageContent, ns);
 
@@ -366,6 +371,65 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 textElement.Value = $"{HorizontalBar}{textElement.Value}";
             }
         }
+
+        const int EmSpacesPerIndent = 2;
+        private void ConvertIndentation(XElement xmlPageContent, XNamespace ns)
+        {
+            string defaultFontSize = getQuickStyleFontsize(xmlPageContent, ns);
+            foreach (var textElement in xmlPageContent.Descendants(ns + "T"))
+            {
+                // Determine indentation level and skip if not indented
+                int indentLevel = textElement.Ancestors(ns + "OEChildren").Count() - 1;
+                if (indentLevel <= 0)
+                    continue;
+
+                // If already a list, we can skip it
+                var prevEl = textElement.PreviousNode as XElement;
+                if (prevEl?.Name.LocalName == "List")
+                    continue;
+
+                // If inside a table, we skip it
+                if (textElement.Ancestors(ns + "Table").Count() > 0)
+                    continue;
+
+                // TODO: check of in tabel!
+                switch (AppSettings.IndentingStyle)
+                {
+                    case IndentingStyleEnum.ConvertToEmSpaces:
+                        textElement.Value = Repeat("&emsp;", indentLevel * EmSpacesPerIndent) + textElement.Value;
+                        break;
+                    case IndentingStyleEnum.ConvertToBullets:
+                        var bulletList = CreateListElement(ns, indentLevel, defaultFontSize);
+                        textElement.AddBeforeSelf(bulletList);
+                        break;
+                }
+            }
+        }
+
+        // Create list element with bullet:
+        //      <one:List>
+        //          <one:Bullet bullet = "13" fontSize = "11.0"/>
+        //      </one:List>
+        private XElement CreateListElement(XNamespace ns, int indentLevel, string fontSize)
+        {
+            return new XElement(ns + "List",
+                new XElement(ns + "Bullet",
+                    new XAttribute("bullet", indentLevel.ToString()),
+                    new XAttribute("fontSize", fontSize)));
+        }
+
+        public string Repeat(string text, int n)
+        {
+            var textAsSpan = text.AsSpan();
+            var span = new Span<char>(new char[textAsSpan.Length * n]);
+            for (var i = 0; i < n; i++)
+            {
+                textAsSpan.CopyTo(span.Slice((int)i * textAsSpan.Length, textAsSpan.Length));
+            }
+
+            return span.ToString();
+        }
+
 
         /// <summary>
         /// Convert Onenote tags to custom tags/emoticons in the text content so the tag information is conveyed to end result.
@@ -437,10 +501,19 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
 
         private static string getTagIndex(XElement xmlPageContent, XNamespace ns, string tagLabel)
         {
+            return getElementAttributeValue(xmlPageContent, ns, "TagDef", tagLabel, "index", "-1");
+        }
+
+        private static string getQuickStyleFontsize(XElement xmlPageContent, XNamespace ns)
+        {
+            return getElementAttributeValue(xmlPageContent, ns, "QuickStyleDef", "p", "fontSize", "11.0");
+        }
+        private static string getElementAttributeValue(XElement xmlPageContent, XNamespace ns, string elementLabel, string elementName, string attributeLabel, string defaultValue)
+        {
             return xmlPageContent
-                .Descendants(ns + "TagDef")
-                .FirstOrDefault(e => e.Attribute("name")?.Value == tagLabel)
-                ?.Attribute("index")?.Value ?? "-1";
+                .Descendants(ns + elementLabel)
+                .FirstOrDefault(e => e.Attribute("name")?.Value == elementName)
+                ?.Attribute(attributeLabel)?.Value ?? defaultValue;
         }
 
         protected abstract string FinalizePageMdPostProcessing(Page page, string md);
