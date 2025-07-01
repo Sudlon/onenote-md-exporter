@@ -297,7 +297,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 xmlOutline.Attribute("collapsed")?.Remove();
             }
 
-            /// Keep "OneNote tag information" by adding custom tags in text content
+           /// Keep "OneNote tag information" by adding custom tags in text content
             ConvertOnenoteTags(xmlPageContent, ns);
 
             /// Make indenting explicit in content by adding empty lines before text blocks
@@ -317,7 +317,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             {
                 // Capture font styling in span elements inside text elements
                 CaptureFontStyling(xmlPageContent, ns);
-                // Escape HTML, or it will be removed by Pandoc
+                // Escape HTML span elements with style attributes, or highlighting will be removed by Pandoc
                 EscapeStylingSpan(xmlPageContent, ns);
             }
 
@@ -332,9 +332,17 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             var highlightRegex = new Regex(@"<span\s+style='(\s*[a-zA-Z0-9\.\#;:-]*)'>(.*?)<\/span>");
             foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
             {
-                xmlText.Value = highlightRegex.Replace(xmlText.Value, match =>
+                if (xmlText.FirstNode is not XCData cdataNode)
                 {
-                    return $"[span style='{match.Groups[1]}']{match.Groups[2]}[/span]";
+                    // Only log if the tag is one we expect to handle
+                    Log.Warning($"Found T-element but no CDATA-element, with Value: '{xmlText?.Value}'");
+                    continue;
+                }
+                XCData innerNode = xmlText.FirstNode as XCData;
+
+                innerNode.Value = highlightRegex.Replace(innerNode.Value, match =>
+                {
+                    return $"«span style='{match.Groups[1]}'»{match.Groups[2]}«/span»";
                 });
             }
         }
@@ -343,6 +351,15 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         {
             foreach (var textElement in xmlPageContent.Descendants(ns + "T"))
             {
+                // Capture CDATA element
+                if (textElement.FirstNode is not XCData cdataNode)
+                {
+                    // Only log if the tag is one we expect to handle
+                    Log.Warning($"Found T-element but no CDATA-element, with Value: '{textElement?.Value}'");
+                    continue;
+                }
+                XCData innerNode = textElement.FirstNode as XCData;
+
                 // This is kindoff cheating, but the code is much simpler:
                 //  In the case of bold/italic/underline text, the text is already inside a <span> element.
                 //  However the text element itself in those cases also has a style attribute (which is basically redundant)
@@ -351,7 +368,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 //      as before: just span element inside the text element.
                 var styleAttribute = textElement.Attribute("style") ?? textElement.Parent?.Attribute("style");
                 if (styleAttribute is not null)
-                    textElement.Value = $"<span style='{styleAttribute.Value}'>{textElement.Value}</span>";
+                    innerNode.Value = $"<span style='{styleAttribute.Value}'>{textElement.Value}</span>";
             }
         }
 
@@ -375,21 +392,19 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             // Skip the first outline element
             foreach (var outline in xmlPageContent.Descendants(ns + "Outline").Skip(1))
             {
-                // Find the first <T> element with a CDATA node
+                // Find the first <T> element with a CDATA node (to be sure)
                 var textElement = outline
                     .Descendants(ns + "T")
                     .FirstOrDefault(e => e.LastNode != null && e.LastNode.NodeType.ToString() == "CDATA");
 
                 if (textElement == null)
-                    continue; // Skip if not found
+                    continue;
 
-                // Add an empty line before the text element
+                // Add a new line with the horizontal bar before the text element
                 var emptyLineXml = new XElement(ns + "OE", new XAttribute("alignment", "left"),
-                    new XElement(ns + "T", "<![CDATA[]]>"));
+                    new XElement(ns + "T", 
+                    new XCData($"{HorizontalBar}")));
                 textElement.Parent?.Parent?.AddFirst(emptyLineXml);
-
-                // Prepend horizontal bar and newlines
-                textElement.Value = $"{HorizontalBar}{textElement.Value}";
             }
         }
 
@@ -477,24 +492,24 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             // Find occurances and replace
             foreach (var tagElement in xmlPageContent.Descendants(ns + "Tag"))
             {
-                XElement parent = tagElement.Parent;
-                XElement contentElement = parent.FirstNode.NextNode as XElement;
-                // LastNode is needed when tag is in a list
-                if (contentElement.Name != ns + "T")
-                    contentElement = parent.LastNode as XElement;
-                XNode innerNode = contentElement.FirstNode;
-
+                // The node after TagNode should be a T(ext)-element
+                // If not we are in a List and we need the next node
+                XElement textElement = tagElement.NextNode as XElement;
+                if (textElement.Name != ns + "T")
+                    textElement = textElement.NextNode as XElement;
+                
                 var elemIndex = tagElement.Attribute("index")?.Value;
-                if (contentElement.FirstNode is not XCData cdataNode)
+                if (textElement.FirstNode is not XCData)
                 {
                     // Only log if the tag is one we expect to handle
                     if (elemIndex == taskIndex || elemIndex == importantIndex || elemIndex == questionIndex)
-                        Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found for element with content: '{contentElement?.Value}'");
+                        Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found for element with content: '{textElement?.Value}'");
                     continue;
                 }
+                XCData innerNode = textElement.FirstNode as XCData;
 
                 // Determine which custom tag to use
-                string customTag = "";
+                string customTag;
                 string highlightEndTag = "";
                 if (elemIndex == taskIndex)
                     customTag = (tagElement.Attribute("completed")?.Value == "false") ? CustomTagUnchecked : CustomTagChecked;
@@ -513,10 +528,10 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     highlightEndTag = "</span>";
                 }
                 else
-                    continue; // Not a task, important or question tag, skip
+                    continue; // Skip other tags
 
                 // Add custom tag right before the tasks inner content
-                contentElement.Value = $"{customTag}{contentElement.Value}{highlightEndTag}";
+                innerNode.Value = $"{customTag}{innerNode.Value}{highlightEndTag}";
             }
             }
 
