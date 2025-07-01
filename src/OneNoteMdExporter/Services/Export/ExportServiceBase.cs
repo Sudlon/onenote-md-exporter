@@ -4,6 +4,7 @@ using alxnbl.OneNoteMdExporter.Models;
 using Microsoft.Office.Interop.OneNote;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -466,6 +467,37 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
             return span.ToString();
         }
 
+        private Dictionary<string, OneNoteTagDefEnum> GetTagDefDict(XElement xmlPageContent, XNamespace ns) {
+            // Get all tag definitions from the page content
+            Dictionary<string, OneNoteTagDefEnum> tags = new Dictionary<string, OneNoteTagDefEnum>();
+
+            foreach (var tagDef in xmlPageContent.Descendants(ns + "TagDef"))
+            {
+                if (string.IsNullOrEmpty(tagDef.Attribute("name")?.Value))
+                    continue;
+
+                var index = tagDef.Attribute("index")?.Value;
+                var type = tagDef.Attribute("type")?.Value;
+                var symbol = tagDef.Attribute("symbol")?.Value;
+                var highlightColor = tagDef.Attribute("highlightColor")?.Value;
+                var name = tagDef.Attribute("name")?.Value;
+                
+                // Determine tag type based on certainty of attributes
+                if (type == "0" || symbol == "3" || name == "To Do" || name == "Taak" || name == "Takenlijst" || type == "99")
+                    tags.Add(index, OneNoteTagDefEnum.Task);
+                else if (type == "1" || symbol == "13" || name == "Important" || name == "Belangrijk" || type ==  "115")
+                    tags.Add(index, OneNoteTagDefEnum.Important);
+                else if (type == "2" || symbol == "15" || name == "Question" || name == "Vraag")
+                    tags.Add(index, OneNoteTagDefEnum.Question);
+                else if (type == "3" || name == "Remember for later" || highlightColor == "#FFFF00")
+                    tags.Add(index, OneNoteTagDefEnum.RemindMeLater);
+                else if (type == "4" || name == "Definition" || name == "Definitie" || type == "119" || highlightColor == "#00FF00")
+                    tags.Add(index, OneNoteTagDefEnum.Definition);
+            }
+
+            return tags;
+        }
+
 
         /// <summary>
         /// Convert Onenote tags to custom tags/emoticons in the text content so the tag information is conveyed to end result.
@@ -482,48 +514,39 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         const string CustomTagDefinition = "<span style='background:green;mso-highlight:green'>";
         private void ConvertOnenoteTags(XElement xmlPageContent, XNamespace ns)
         {
-            // Find the indices for OneNote tags
-            string taskIndex = getTagIndex(xmlPageContent, ns, "To Do");
-            string taakIndex = getTagIndex(xmlPageContent, ns, "Taak");
-            string importantIndex = getTagIndex(xmlPageContent, ns, "Important");
-            string questionIndex = getTagIndex(xmlPageContent, ns, "Question");
-            string rememberIndex = getTagIndex(xmlPageContent, ns, "Remember for later");   // yellow highlight
-            string definitionIndex = getTagIndex(xmlPageContent, ns, "Definition");         // Green highlight
+            var tags = GetTagDefDict(xmlPageContent, ns);
 
             // Find occurances and replace
             foreach (var tagElement in xmlPageContent.Descendants(ns + "Tag"))
             {
-                // The node after TagNode should be a T(ext)-element
-                // If not we are in a List and we need the next node
-                XElement textElement = tagElement.NextNode as XElement;
-                if (textElement.Name != ns + "T")
-                    textElement = textElement.NextNode as XElement;
-                
-                var elemIndex = tagElement.Attribute("index")?.Value;
+                // Get the corresponding text element
+                XElement textElement = tagElement.Parent.Descendants(ns + "T").First() as XElement;
                 if (textElement.FirstNode is not XCData)
                 {
-                    // Only log if the tag is one we expect to handle
-                    if (elemIndex == taskIndex || elemIndex == importantIndex || elemIndex == questionIndex)
-                        Log.Warning($"Found task, but couldn't add custom tag. No CDATA-field found for element with content: '{textElement?.Value}'");
+                    Log.Warning($"Found tag, but couldn't add custom tag. No CDATA-field found for element with content: '{textElement?.Value}'");
                     continue;
                 }
-                XCData innerNode = textElement.FirstNode as XCData;
 
+                var tagIndex = tagElement.Attribute("index")?.Value;
+                if (!tags.ContainsKey(tagIndex))
+                    continue;
+                                
                 // Determine which custom tag to use
+                var tagType = tags[tagIndex];
                 string customTag;
                 string highlightEndTag = "";
-                if (elemIndex == taskIndex || elemIndex == taakIndex)
+                if (tagType == OneNoteTagDefEnum.Task)
                     customTag = (tagElement.Attribute("completed")?.Value == "false") ? CustomTagUnchecked : CustomTagChecked;
-                else if (elemIndex == importantIndex)
+                else if (tagType == OneNoteTagDefEnum.Important)
                     customTag = CustomTagStar;
-                else if (elemIndex == questionIndex)
+                else if (tagType == OneNoteTagDefEnum.Question)
                     customTag = CustomTagQuestion;
-                else if (elemIndex == rememberIndex)
+                else if (tagType == OneNoteTagDefEnum.RemindMeLater)
                 {
                     customTag = CustomTagRemember;
                     highlightEndTag = "</span>";
                 }
-                else if (elemIndex == definitionIndex)
+                else if (tagType == OneNoteTagDefEnum.Definition)
                 {
                     customTag = CustomTagDefinition;
                     highlightEndTag = "</span>";
@@ -532,13 +555,9 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                     continue; // Skip other tags
 
                 // Add custom tag right before the tasks inner content
+                XCData innerNode = textElement.FirstNode as XCData;
                 innerNode.Value = $"{customTag}{innerNode.Value}{highlightEndTag}";
             }
-            }
-
-        private static string getTagIndex(XElement xmlPageContent, XNamespace ns, string tagLabel)
-        {
-            return getElementAttributeValue(xmlPageContent, ns, "TagDef", tagLabel, "index", "-1");
         }
 
         private static string getQuickStyleFontsize(XElement xmlPageContent, XNamespace ns)
