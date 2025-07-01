@@ -305,7 +305,7 @@ namespace alxnbl.OneNoteMdExporter.Services
         private static string UnEscapeStylingSpan(string pageTxt)
         {
             // Unescape the highlighting span tags (after Pandoc conversion)
-            string highlightRegex = @"«span\s+style='(\s*[a-zA-Z0-9\.\#;:-]*)'»(.*?)«\/span»";
+            string highlightRegex = @"«span\s+style='(\s*[a-zA-Z0-9\s\.\#;:-]*)'»(.*?)«\/span»";
             var pageTxtModified = Regex.Replace(pageTxt, highlightRegex, delegate (Match match)
             {
                 return $"<span style='{match.Groups[1]}'>{match.Groups[2]}</span>";

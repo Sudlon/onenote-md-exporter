@@ -329,7 +329,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
 
         private static void EscapeStylingSpan(XElement xmlPageContent, XNamespace ns)
         {
-            var highlightRegex = new Regex(@"<span\s+style='(\s*[a-zA-Z0-9\.\#;:-]*)'>(.*?)<\/span>");
+            var highlightRegex = new Regex(@"<span\s+style='(\s*[a-zA-Z0-9\s\.\#;:-]*)'>(.*?)<\/span>");
             foreach (var xmlText in xmlPageContent.Descendants(ns + "T"))
             {
                 if (xmlText.FirstNode is not XCData cdataNode)
@@ -484,6 +484,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
         {
             // Find the indices for OneNote tags
             string taskIndex = getTagIndex(xmlPageContent, ns, "To Do");
+            string taakIndex = getTagIndex(xmlPageContent, ns, "Taak");
             string importantIndex = getTagIndex(xmlPageContent, ns, "Important");
             string questionIndex = getTagIndex(xmlPageContent, ns, "Question");
             string rememberIndex = getTagIndex(xmlPageContent, ns, "Remember for later");   // yellow highlight
@@ -511,7 +512,7 @@ namespace alxnbl.OneNoteMdExporter.Services.Export
                 // Determine which custom tag to use
                 string customTag;
                 string highlightEndTag = "";
-                if (elemIndex == taskIndex)
+                if (elemIndex == taskIndex || elemIndex == taakIndex)
                     customTag = (tagElement.Attribute("completed")?.Value == "false") ? CustomTagUnchecked : CustomTagChecked;
                 else if (elemIndex == importantIndex)
                     customTag = CustomTagStar;
